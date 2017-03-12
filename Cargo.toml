@@ -6,3 +6,4 @@ version = "0.1.0"
 [dependencies]
 bit-vec = "0.4.3"
 ndarray = "0.8.0"
+rayon = "0.6.0"

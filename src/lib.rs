@@ -5,10 +5,12 @@
 
 
 // Should I back with ndarray or not? Maybe I don't really need this.
-//extern crate ndarray;
 //extern crate bit_vec;
+//extern crate ndarray;
+extern crate rayon;
 
 //use bit_vec::BitVec;
+use rayon::prelude::*;
 
 pub struct Table<C> where C: Column {
     column_index: Vec<usize>,
@@ -21,8 +23,13 @@ pub trait Column{
     type BaseType;
     //new, new_from, etc...
     // public interface for things like sum
-    fn apply(&mut self, Box<Fn(Self::BaseType) -> Self::BaseType>);
+    fn apply<F>(&mut self, f: F) where
+        Self: Sized,
+        F: Fn(Self::BaseType) -> Self::BaseType + std::marker::Sync;
     // private interface for things that table manipulation requires?
+
+
+    //TODO next: into column?
 }
 
 /// Dtype describes the logical type, as well
@@ -59,12 +66,9 @@ impl Float32 {
 
 impl Column for Float32 {
     type BaseType = f32;
-    fn apply(&mut self, f: Box<Fn(f32) -> f32>) {
-        //self.0.iter_mut().map(|x| x = f(x));
-        for i in 0..self.0.len() {
-            let x = self.0[i];
-            self.0[i] = f(x);
-        }
+    fn apply<F: Fn(f32) -> f32>(&mut self, f: F)
+        where F: std::marker::Sync {
+        self.0.par_iter_mut().for_each(|x| *x = f(*x));
     }
 }
 
@@ -75,7 +79,7 @@ mod tests {
     #[test]
     fn initial_test() {
         let mut col = Float32::new(vec![1.0,2.,3.,4.,5.,6.]);
-        col.apply(Box::new(|x| x*x));
+        col.apply(|x| x*x);
         println!("{:?}", col);
         assert!(false);
     }
