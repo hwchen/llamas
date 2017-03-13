@@ -1,6 +1,6 @@
 [package]
 authors = ["Walther Chen <walther.chen@gmail.com>"]
-name = "dataframe"
+name = "llamas"
 version = "0.1.0"
 
 [dependencies]
