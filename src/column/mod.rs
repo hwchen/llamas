@@ -35,9 +35,13 @@
 
 mod float;
 mod int;
+mod string;
 
 pub use self::float::{Float32};
 pub use self::int::{Int8};
+pub use self::string::{StringArray};
+
+
 
 /// A Column. It's the logical interface to
 /// to an array(1D collection, column, logical store) of dtypes.
