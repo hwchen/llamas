@@ -29,3 +29,11 @@ Some notes on architecture:
 - The bit-vec issue on removals and insertions would actually be solved if
   I could just use Option<T>. However, I think the memory overhead is much
   higher: looks like 4 bytes per "option", where bit-vec was only 1 bit.
+
+# Iterators/streams
+- Should have an iterator as well as a chunks iterator. This will allow for lazy
+  evaluation of several combinator steps, allowing better performance.
+- readers (like `from_csv`) should allow for creating an iterator directly, would
+  this be enough to create a streaming api?
+- for writing to database, though, streaming row-by-row is not best. Better to collect
+  into a chunk and do a bulk write.

@@ -1,6 +1,7 @@
 [package]
+authors = ["Walther Chen <walther.chen@gmail.com>"]
 name = "llamas-categorical"
 version = "0.1.0"
-authors = ["Walther Chen <walther.chen@gmail.com>"]
 
 [dependencies]
+rayon = "0.6.0"

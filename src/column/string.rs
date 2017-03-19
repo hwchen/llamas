@@ -1,27 +1,17 @@
-//! If I use this StringArray, (or rename to categorical?)
-//! the question is whether performance characteristics
-//! will be worse than a simple Vec<String> in the worst
-//! case that every single row in the column is different.
+//! String dtype column
 //!
-//! Also, take for example splitting each str.
-//! This would be an in-place map instead of an iter().map()
-//! that a Vec<String> would use.
-//! This seems like it could actually be more specific
-//! to llamas, and not sure how much should be generalized
-//! out. So better to start in llamas.
+//! Backed by llamas categorical, an array of categorical objects
+//! (represented as strings). As can be seen by the name of the crate
+//! the StringColumn type is expected to work well with information
+//! of low cardinality (where there are fewer options for values).
 //!
-//! What happens if a string is split? That means that all
-//! the offsets need to be recalculated? No, because it's
-//! offset from the beginning.
+//! This works well with how strings are often used in dataframes: either
+//! as a categorical type, or an almost-categorical type (string to be split
+//! into categorical types).
 //!
-//! Wait, this needs to be split off... because I need to
-//! use it for categorical anyways.
-//!
-//! It should eagerly reclaim allocation. Otherwise
-//! unexpected behavior on lots of deletes
+//! Would this work ok with streaming from disk? (since it's not just a
+//! straightforward list of elements).
 
-use bit_vec::BitVec;
-use rayon::prelude::*;
 use std::convert::From;
 use std::ops::Index;
 use std::str;

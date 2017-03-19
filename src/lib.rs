@@ -5,6 +5,7 @@
 
 // Should I back with ndarray or not? Maybe I don't really need this.
 extern crate bit_vec;
+extern crate llamas_categorical;
 //extern crate ndarray;
 extern crate rayon;
 
