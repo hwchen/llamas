@@ -12,6 +12,8 @@
 //! Would this work ok with streaming from disk? (since it's not just a
 //! straightforward list of elements).
 
+use bit_vec::BitVec;
+use llamas_categorical::CategoricalArray;
 use std::convert::From;
 use std::ops::Index;
 use std::str;
@@ -20,19 +22,15 @@ use std::string::String;
 use super::{Column, NumericColumn};
 
 #[derive(Debug)]
-pub struct StringArray {
-    indices: Vec<usize>,
-    offsets: Vec<usize>,
-    data: Vec<u8>,
+pub struct StringColumn {
+    values: CategoricalArray,
     mask: BitVec,
 }
 
-impl StringArray {
+impl StringColumn {
     pub fn new() -> Self {
-        StringArray {
-            indices: Vec::new(),
-            offsets: vec![0],
-            data: Vec::new(),
+        StringColumn {
+            values: CategoricalArray::new(),
             mask: BitVec::new(),
         }
     }
@@ -43,145 +41,27 @@ impl StringArray {
     /// - Array should stay contiguous, so need to make
     ///   a copy of arg into array anyways.
     pub fn push(&mut self, s: &str) {
-        let indices_len = self.indices.len();
-        self.insert(indices_len, s);
+        self.values.push(s.as_bytes());
+        self.mask.push(true);
     }
 
     pub fn push_null(&mut self) {
-        self.indices.push(0);
+        self.values.push(b"");
         self.mask.push(false);
     }
 
-    // insert should only insert into indices,
-    // but append to data
-    // What is the use case for this?
-    // TODO double-check how push and insert are implemented in Vec
-    /// Should panic if out of bounds
-    pub fn insert(&mut self, index: usize, s: &str) {
-        // push shouldn't happen that often, except
-        // when initially building column.
-
-        // No matter whether s already exists in data,
-        // mask gets one more true value
-        // TODO: bug! mask should not just be a push here.
-        self.mask.push(true);
-
-        let bytes = s.as_bytes();
-
-        // First check if s already exists in data.
-        if let Some(ptr_to_offset) = self.contains_str_bytes(bytes) {
-            // only has to add a reference to the offset
-            self.indices.insert(index, ptr_to_offset);
-            return;
-        }
-
-        // Now we know that s doesn't already exist
-        // in data, so need to add to data and update
-        // indices, mask, etc. accordingly
-
-        // New offset and data append only if s doesn't
-        // already exist in data.
-        self.offsets.push(self.data.len() + bytes.len());
-        // Note: indices will point to the next-to-last
-        // offset AFTER offsets are updated.
-        self.indices.insert(index, self.offsets.len() - 2);
-        self.data.extend_from_slice(bytes);
-    }
-
-    /// Looks for str slices in data that match bytes.
-    /// Of course, matches at the offsets, not on arbitrary
-    /// slices in self.data
-    /// This method is private, public one matches again &str
-    fn contains_str_bytes(&self, bytes: &[u8]) -> Option<usize> {
-        // doesn't use iterator, because
-        // iterator is over &str, and
-        // this is over bytes
-        let slice_indices = self.offsets.windows(2);
-
-        for (i, range) in slice_indices.enumerate() {
-            if *bytes == self.data[range[0]..range[1]] {
-                return Some(i);
-            }
-        }
-        None
-    }
-
     pub fn contains(&self, s: &str) -> bool {
-        // Don't want to use String::contains
-        // because we only want to check
-        // at each offset, not entire string array.
-        match self.contains_str_bytes(s.as_bytes()) {
-            Some(_) => true,
-            _ => false,
-        }
+        self.values.contains(s.as_bytes())
     }
 
     pub fn get(&self, i: usize) -> Option<&str> {
-        if i < self.indices.len() {
-            let offset_ptr = self.indices[i];
-            let offset_range = self.offsets[offset_ptr]..self.offsets[offset_ptr + 1];
-
-            // unwrap here because we put in correct utf8,
-            // this must also output correct utf8
-            Some(str::from_utf8(&self.data[offset_range]).unwrap())
-        } else {
-            None
-        }
-    }
-
-    /// Should panic if out of bounds, just like Vec::remove()
-    pub fn remove(&mut self, index: usize) -> String {
-        // Do I need to reference count to collect
-        // garbage? offset would hold the rc
-        // No, removal of a single row should be relatively
-        // rare, so just check all indices to see if
-        // they are also referencing the same offset.
-        // In this vein, it's fine to just compact the
-        // data vec immediately to prevent floating
-        // data.
-        let offset_ptr = self.indices[index];
-
-        self.indices.remove(index);
-        // TODO fix mask insert/remove
-        //self.mask.remove(index);
-
-        let offset_start = self.offsets[offset_ptr];
-        let offset_end = self.offsets[offset_ptr + 1];
-        let offset_range = offset_start..offset_end;
-
-        // since there's no more references to that offset,
-        // we should delete the data in self.data
-        if !self.indices.contains(&offset_ptr) {
-            let offset_len = offset_end - offset_start;
-
-            let res_bytes = self.data.drain(offset_range);
-
-            // need to fix all the offsets.
-            // Just need to remove offset at offset_ptr + 1
-            self.offsets.remove(offset_ptr + 1);
-            self.offsets[offset_ptr + 1..]
-                .par_iter_mut()
-                .for_each(|x| *x -= offset_len);
-
-            // and then dont forget that some of the offset_ptr now all
-            // need to be moved one to the left
-            // note that -= 1 is ok, because offset_ptr will always be > 0
-            // in the below calculation
-            self.indices
-                .par_iter_mut()
-                .for_each(|p| if *p > offset_ptr { *p -= 1});
-
-            String::from_utf8(res_bytes.collect::<Vec<u8>>()).unwrap()
-
-        } else {
-            // We don't need to do anything if there's still an
-            // offset_ptr, except return str.
-            String::from_utf8(self.data[offset_range].to_vec()).unwrap()
-        }
+        self.values
+            .get(i)
+            .map(|bytes| str::from_utf8(bytes).unwrap())
     }
 
     pub fn is_empty(&self) -> bool {
-        self.indices.is_empty()
+        self.values.is_empty()
     }
 
     //pub fn split_off(&mut self, at: usize) -> Self {
@@ -194,22 +74,18 @@ impl StringArray {
     // len!
     // is_empty
     //
+    // pop?
 }
 
 // don't implement Index.
 // Can only use Get
 // The problem is that [] dereferences
 // the &str to str.
-impl Index<usize> for StringArray {
+impl Index<usize> for StringColumn {
     type Output = str;
 
     fn index(&self, i: usize) -> &str {
-        let ptr_to_offset = self.indices[i];
-        let offset_range = self.offsets[ptr_to_offset]..self.offsets[ptr_to_offset + 1];
-
-        // unwrap here because we put in correct utf8,
-        // this must also output correct utf8
-        str::from_utf8(&self.data[offset_range]).unwrap()
+        str::from_utf8(&self.values[i]).unwrap()
     }
 }
 
@@ -222,7 +98,7 @@ mod tests {
 
     #[test]
     fn initial_and_insert() {
-        let mut sa = StringArray::new();
+        let mut sa = StringColumn::new();
         sa.push("one");
         sa.push("two");
         sa.push("three");
@@ -236,79 +112,15 @@ mod tests {
         assert_eq!(sa.get(1), Some("two"));
         assert_eq!(sa.get(2), Some("three"));
         assert_eq!(sa.get(4), None);
-
-        // insert middle
-        sa.insert(1, "ten");
-        // insert end
-        sa.insert(5, "twenty");
-        assert_eq!(sa.get(1), Some("ten"));
-        assert_eq!(sa.get(5), Some("twenty"));
-        assert_eq!(sa.get(6), None);
-
-        // insert front
-        sa.insert(0, "test");
-        assert_eq!(sa.get(0), Some("test"));
-        assert_eq!(sa.get(1), Some("one"));
-        assert_eq!(sa.get(2), Some("ten"));
-        assert_eq!(sa.get(3), Some("two"));
-        assert_eq!(sa.get(4), Some("three"));
-        assert_eq!(sa.get(5), Some("one"));
-        assert_eq!(sa.get(6), Some("twenty"));
-        assert_eq!(sa.get(7), None);
     }
 
     #[test]
-    #[should_panic]
-    fn insert_panic() {
-        let mut sa = StringArray::new();
-        sa.push("one");
-        sa.insert(5, "twenty");
-    }
-
-    #[test]
-    fn remove() {
-        let mut sa = StringArray::new();
+    fn pop() {
+        let mut sa = StringColumn::new();
         sa.push("one");
         sa.push("two");
         sa.push("three");
         sa.push("one");
         sa.push("five");
-
-        // removing the last of a value
-        let removed = sa.remove(1);
-        assert_eq!(removed, "two".to_owned());
-        assert_eq!(sa.get(0), Some("one"));
-        assert_eq!(sa.get(1), Some("three"));
-        assert_eq!(sa.get(2), Some("one"));
-        assert_eq!(sa.get(3), Some("five"));
-
-        // removing a value which still exists
-        // at another index
-        let removed = sa.remove(2);
-        assert_eq!(removed, "one".to_owned());
-        assert_eq!(sa.get(0), Some("one"));
-        assert_eq!(sa.get(1), Some("three"));
-        assert_eq!(sa.get(2), Some("five"));
-
-        // removing first
-        let removed = sa.remove(0);
-        assert_eq!(removed, "one".to_owned());
-        assert_eq!(sa.get(0), Some("three"));
-        assert_eq!(sa.get(1), Some("five"));
-
-        // removing last
-        let removed = sa.remove(1);
-        assert_eq!(removed, "five".to_owned());
-        assert_eq!(sa.get(0), Some("three"));
-
-        // removing very last
-        let removed = sa.remove(0);
-        assert_eq!(removed, "three".to_owned());
-        assert!(sa.is_empty());
-        assert!(sa.indices.is_empty());
-        assert!(sa.offsets.len() == 1);
-        assert!(sa.data.is_empty());
-        // TODO fix mask problems
-        //assert!(sa.mask.is_empty());
     }
 }

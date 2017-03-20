@@ -26,8 +26,6 @@ extern crate rayon;
 
 use rayon::prelude::*;
 use std::ops::Index;
-use std::str;
-use std::string::String;
 
 #[derive(Debug)]
 pub struct CategoricalArray {
@@ -50,13 +48,9 @@ impl CategoricalArray {
     ///   to copy.
     /// - Array should stay contiguous, so need to make
     ///   a copy of arg into array anyways.
-    pub fn push(&mut self, s: &str) {
+    pub fn push(&mut self, bytes: &[u8]) {
         let indices_len = self.indices.len();
-        self.insert(indices_len, s);
-    }
-
-    pub fn push_null(&mut self) {
-        self.indices.push(0);
+        self.insert(indices_len, bytes);
     }
 
     // insert should only insert into indices,
@@ -64,20 +58,18 @@ impl CategoricalArray {
     // What is the use case for this?
     // TODO double-check how push and insert are implemented in Vec
     /// Should panic if out of bounds
-    pub fn insert(&mut self, index: usize, s: &str) {
+    pub fn insert(&mut self, index: usize, bytes: &[u8]) {
         // push shouldn't happen that often, except
         // when initially building column.
 
-        let bytes = s.as_bytes();
-
-        // First check if s already exists in data.
-        if let Some(ptr_to_offset) = self.contains_str_bytes(bytes) {
+        // First check if bytes already exists in data.
+        if let Some(ptr_to_offset) = self.offset_position(bytes) {
             // only has to add a reference to the offset
             self.indices.insert(index, ptr_to_offset);
             return;
         }
 
-        // Now we know that s doesn't already exist
+        // Now we know that `bytes` doesn't already exist
         // in data, so need to add to data and update
         // indices, etc. accordingly
 
@@ -93,46 +85,37 @@ impl CategoricalArray {
     /// Looks for str slices in data that match bytes.
     /// Of course, matches at the offsets, not on arbitrary
     /// slices in self.data
-    /// This method is private, public one matches again &str
-    fn contains_str_bytes(&self, bytes: &[u8]) -> Option<usize> {
-        // doesn't use iterator, because
-        // iterator is over &str, and
-        // this is over bytes
-        let slice_indices = self.offsets.windows(2);
-
-        for (i, range) in slice_indices.enumerate() {
-            if *bytes == self.data[range[0]..range[1]] {
+    fn offset_position(&self, bytes: &[u8]) -> Option<usize> {
+        for (i, offset_range) in self.offsets.windows(2).enumerate() {
+            if *bytes == self.data[offset_range[0]..offset_range[1]] {
                 return Some(i);
             }
         }
         None
     }
 
-    pub fn contains(&self, s: &str) -> bool {
-        // Don't want to use String::contains
-        // because we only want to check
-        // at each offset, not entire string array.
-        match self.contains_str_bytes(s.as_bytes()) {
+    pub fn contains(&self, bytes: &[u8]) -> bool {
+        match self.offset_position(bytes) {
             Some(_) => true,
             _ => false,
         }
     }
 
-    pub fn get(&self, i: usize) -> Option<&str> {
+    pub fn get(&self, i: usize) -> Option<&[u8]> {
         if i < self.indices.len() {
             let offset_ptr = self.indices[i];
             let offset_range = self.offsets[offset_ptr]..self.offsets[offset_ptr + 1];
 
             // unwrap here because we put in correct utf8,
             // this must also output correct utf8
-            Some(str::from_utf8(&self.data[offset_range]).unwrap())
+            Some(&self.data[offset_range])
         } else {
             None
         }
     }
 
     /// Should panic if out of bounds, just like Vec::remove()
-    pub fn remove(&mut self, index: usize) -> String {
+    pub fn remove(&mut self, index: usize) -> Vec<u8> {
         // Do I need to reference count to collect
         // garbage? offset would hold the rc
         // No, removal of a single row should be relatively
@@ -171,12 +154,12 @@ impl CategoricalArray {
                 .par_iter_mut()
                 .for_each(|p| if *p > offset_ptr { *p -= 1});
 
-            String::from_utf8(res_bytes.collect::<Vec<u8>>()).unwrap()
+            res_bytes.collect::<Vec<u8>>()
 
         } else {
             // We don't need to do anything if there's still an
             // offset_ptr, except return str.
-            String::from_utf8(self.data[offset_range].to_vec()).unwrap()
+            self.data[offset_range].to_vec()
         }
     }
 
@@ -204,15 +187,15 @@ impl CategoricalArray {
 // The problem is that [] dereferences
 // the &str to str.
 impl Index<usize> for CategoricalArray {
-    type Output = str;
+    type Output = [u8];
 
-    fn index(&self, i: usize) -> &str {
+    fn index(&self, i: usize) -> &[u8] {
         let ptr_to_offset = self.indices[i];
         let offset_range = self.offsets[ptr_to_offset]..self.offsets[ptr_to_offset + 1];
 
         // unwrap here because we put in correct utf8,
         // this must also output correct utf8
-        str::from_utf8(&self.data[offset_range]).unwrap()
+        &self.data[offset_range]
     }
 }
 
@@ -226,38 +209,38 @@ mod tests {
     #[test]
     fn initial_and_insert() {
         let mut sa = CategoricalArray::new();
-        sa.push("one");
-        sa.push("two");
-        sa.push("three");
-        sa.push("one");
-        assert_eq!(&sa[0], "one");
-        assert_eq!(&sa[3], "one");
-        assert_eq!(&sa[1], "two");
-        assert_eq!(&sa[2], "three");
-        assert_eq!(sa.get(0), Some("one"));
-        assert_eq!(sa.get(3), Some("one"));
-        assert_eq!(sa.get(1), Some("two"));
-        assert_eq!(sa.get(2), Some("three"));
+        sa.push(b"one");
+        sa.push(b"two");
+        sa.push(b"three");
+        sa.push(b"one");
+        assert_eq!(&sa[0], &b"one"[..]);
+        assert_eq!(&sa[3], &b"one"[..]);
+        assert_eq!(&sa[1], &b"two"[..]);
+        assert_eq!(&sa[2], &b"three"[..]);
+        assert_eq!(sa.get(0), Some(&b"one"[..]));
+        assert_eq!(sa.get(3), Some(&b"one"[..]));
+        assert_eq!(sa.get(1), Some(&b"two"[..]));
+        assert_eq!(sa.get(2), Some(&b"three"[..]));
         assert_eq!(sa.get(4), None);
         assert_eq!(sa.len(), 4);
 
         // insert middle
-        sa.insert(1, "ten");
+        sa.insert(1, b"ten");
         // insert end
-        sa.insert(5, "twenty");
-        assert_eq!(sa.get(1), Some("ten"));
-        assert_eq!(sa.get(5), Some("twenty"));
+        sa.insert(5, b"twenty");
+        assert_eq!(sa.get(1), Some(&b"ten"[..]));
+        assert_eq!(sa.get(5), Some(&b"twenty"[..]));
         assert_eq!(sa.get(6), None);
 
         // insert front
-        sa.insert(0, "test");
-        assert_eq!(sa.get(0), Some("test"));
-        assert_eq!(sa.get(1), Some("one"));
-        assert_eq!(sa.get(2), Some("ten"));
-        assert_eq!(sa.get(3), Some("two"));
-        assert_eq!(sa.get(4), Some("three"));
-        assert_eq!(sa.get(5), Some("one"));
-        assert_eq!(sa.get(6), Some("twenty"));
+        sa.insert(0, b"test");
+        assert_eq!(sa.get(0), Some(&b"test"[..]));
+        assert_eq!(sa.get(1), Some(&b"one"[..]));
+        assert_eq!(sa.get(2), Some(&b"ten"[..]));
+        assert_eq!(sa.get(3), Some(&b"two"[..]));
+        assert_eq!(sa.get(4), Some(&b"three"[..]));
+        assert_eq!(sa.get(5), Some(&b"one"[..]));
+        assert_eq!(sa.get(6), Some(&b"twenty"[..]));
         assert_eq!(sa.get(7), None);
         assert_eq!(sa.len(), 7);
     }
@@ -266,49 +249,49 @@ mod tests {
     #[should_panic]
     fn insert_panic() {
         let mut sa = CategoricalArray::new();
-        sa.push("one");
-        sa.insert(5, "twenty");
+        sa.push(b"one");
+        sa.insert(5, b"twenty");
     }
 
     #[test]
     fn remove() {
         let mut sa = CategoricalArray::new();
-        sa.push("one");
-        sa.push("two");
-        sa.push("three");
-        sa.push("one");
-        sa.push("five");
+        sa.push(b"one");
+        sa.push(b"two");
+        sa.push(b"three");
+        sa.push(b"one");
+        sa.push(b"five");
 
         // removing the last of a value
         let removed = sa.remove(1);
-        assert_eq!(removed, "two".to_owned());
-        assert_eq!(sa.get(0), Some("one"));
-        assert_eq!(sa.get(1), Some("three"));
-        assert_eq!(sa.get(2), Some("one"));
-        assert_eq!(sa.get(3), Some("five"));
+        assert_eq!(removed, b"two".to_vec());
+        assert_eq!(sa.get(0), Some(&b"one"[..]));
+        assert_eq!(sa.get(1), Some(&b"three"[..]));
+        assert_eq!(sa.get(2), Some(&b"one"[..]));
+        assert_eq!(sa.get(3), Some(&b"five"[..]));
 
         // removing a value which still exists
         // at another index
         let removed = sa.remove(2);
-        assert_eq!(removed, "one".to_owned());
-        assert_eq!(sa.get(0), Some("one"));
-        assert_eq!(sa.get(1), Some("three"));
-        assert_eq!(sa.get(2), Some("five"));
+        assert_eq!(removed, b"one".to_vec());
+        assert_eq!(sa.get(0), Some(&b"one"[..]));
+        assert_eq!(sa.get(1), Some(&b"three"[..]));
+        assert_eq!(sa.get(2), Some(&b"five"[..]));
 
         // removing first
         let removed = sa.remove(0);
-        assert_eq!(removed, "one".to_owned());
-        assert_eq!(sa.get(0), Some("three"));
-        assert_eq!(sa.get(1), Some("five"));
+        assert_eq!(removed, b"one".to_vec());
+        assert_eq!(sa.get(0), Some(&b"three"[..]));
+        assert_eq!(sa.get(1), Some(&b"five"[..]));
 
         // removing last
         let removed = sa.remove(1);
-        assert_eq!(removed, "five".to_owned());
-        assert_eq!(sa.get(0), Some("three"));
+        assert_eq!(removed, b"five".to_vec());
+        assert_eq!(sa.get(0), Some(&b"three"[..]));
 
         // removing very last
         let removed = sa.remove(0);
-        assert_eq!(removed, "three".to_owned());
+        assert_eq!(removed, b"three".to_vec());
         assert!(sa.is_empty());
         assert!(sa.indices.is_empty());
         assert!(sa.offsets.len() == 1);

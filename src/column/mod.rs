@@ -39,7 +39,7 @@ mod string;
 
 pub use self::float::{Float32};
 pub use self::int::{Int8};
-pub use self::string::{StringArray};
+pub use self::string::{StringColumn};
 
 
 
