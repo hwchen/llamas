@@ -5,15 +5,25 @@
 
 // Should I back with ndarray or not? Maybe I don't really need this.
 extern crate bit_vec;
+extern crate llamas_categorical;
 //extern crate ndarray;
 extern crate rayon;
 
 pub mod column;
+pub mod dataframe;
 
-use column::Column;
+pub mod prelude {
+    pub use column::{
+        Column,
+        Numeric
+    };
 
-pub struct Table<C> where C: Column {
-    column_name: Vec<usize>, //keep name and index synced?
-    columns: Vec<Box<C>>,
+    pub use column::{
+        Int8Column,
+        Float32Column,
+        StringColumn,
+    };
+
+    pub use dataframe::DataFrame;
 }
 

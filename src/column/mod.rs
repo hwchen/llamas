@@ -37,9 +37,9 @@ mod float;
 mod int;
 mod string;
 
-pub use self::float::{Float32};
-pub use self::int::{Int8};
-pub use self::string::{StringArray};
+pub use self::float::{Float32Column};
+pub use self::int::{Int8Column};
+pub use self::string::{StringColumn};
 
 
 
@@ -55,7 +55,10 @@ pub trait Column {
         F: Fn(Self::BaseType) -> Self::BaseType + ::std::marker::Sync;
 }
 
-pub trait NumericColumn: Column {
+pub trait Numeric: Column {
     fn sum(&self) -> Self::BaseType;
+}
+
+pub trait Time: Column {
 }
 

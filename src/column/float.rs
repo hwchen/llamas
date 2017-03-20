@@ -1,18 +1,18 @@
 use rayon::prelude::*;
 use std::convert::From;
 
-use super::{Column, NumericColumn};
+use super::{Column, Numeric};
 
 #[derive(Debug)]
-pub struct Float32(Vec<f32>);
+pub struct Float32Column(Vec<f32>);
 
-impl Float32 {
+impl Float32Column {
     pub fn new(v: Vec<f32>) -> Self {
-        Float32(v)
+        Float32Column(v)
     }
 }
 
-impl Column for Float32 {
+impl Column for Float32Column {
     type BaseType = f32;
 
     fn dtype() -> String { "float32".to_owned() }
@@ -23,7 +23,7 @@ impl Column for Float32 {
     }
 }
 
-impl NumericColumn for Float32 {
+impl Numeric for Float32Column {
     fn sum(&self) -> f32 {
         self.0.par_iter().cloned().sum()
     }
@@ -57,7 +57,7 @@ mod tests {
 
     #[test]
     fn impl_column_for_float() {
-        let mut col = Float32::new(vec![1.0,2.,3.,4.,5.,6.]);
+        let mut col = Float32Column::new(vec![1.0,2.,3.,4.,5.,6.]);
         col.apply(|x| x*x);
         let res = vec![1.0,4.,9.,16.,25.,36.];
         assert_eq!(col.0, res);
@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn impl_numeric_column_for_float() {
-        let col = Float32::new(vec![1.0,2.,3.,4.,5.,6.]);
+        let col = Float32Column::new(vec![1.0,2.,3.,4.,5.,6.]);
         let sum = col.sum();
         assert!(float_nearly_equal(sum, 21.0));
     }
