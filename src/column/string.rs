@@ -13,7 +13,7 @@
 //! straightforward list of elements).
 
 use bit_vec::BitVec;
-use llamas_categorical::CategoricalArray;
+use llamas_categorical::CategoricalVec;
 use std::convert::From;
 use std::ops::Index;
 use std::str;
@@ -23,14 +23,14 @@ use super::{Column, NumericColumn};
 
 #[derive(Debug)]
 pub struct StringColumn {
-    values: CategoricalArray,
+    values: CategoricalVec,
     mask: BitVec,
 }
 
 impl StringColumn {
     pub fn new() -> Self {
         StringColumn {
-            values: CategoricalArray::new(),
+            values: CategoricalVec::new(),
             mask: BitVec::new(),
         }
     }

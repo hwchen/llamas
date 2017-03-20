@@ -1,4 +1,4 @@
-//! CategoricalArray
+//! CategoricalVec
 //!
 //! In llamas, provides backing for
 //! - binary
@@ -6,7 +6,7 @@
 //! - string
 //! datatype columns.
 //!
-//! A CategoricalArray stores distinct values of
+//! A CategoricalVec stores distinct values of
 //! bytestrings/strings in a monolithic array. Indexing
 //! is provided by indexes to offsets.
 //!
@@ -28,15 +28,15 @@ use rayon::prelude::*;
 use std::ops::Index;
 
 #[derive(Debug)]
-pub struct CategoricalArray {
+pub struct CategoricalVec {
     indices: Vec<usize>,
     offsets: Vec<usize>,
     data: Vec<u8>,
 }
 
-impl CategoricalArray {
+impl CategoricalVec {
     pub fn new() -> Self {
-        CategoricalArray {
+        CategoricalVec {
             indices: Vec::new(),
             offsets: vec![0],
             data: Vec::new(),
@@ -46,7 +46,7 @@ impl CategoricalArray {
     /// Takes a reference to a string because:
     /// - if string already exists in array, don't need
     ///   to copy.
-    /// - Array should stay contiguous, so need to make
+    /// - Vec should stay contiguous, so need to make
     ///   a copy of arg into array anyways.
     pub fn push(&mut self, bytes: &[u8]) {
         let indices_len = self.indices.len();
@@ -186,7 +186,7 @@ impl CategoricalArray {
 // Can only use Get
 // The problem is that [] dereferences
 // the &str to str.
-impl Index<usize> for CategoricalArray {
+impl Index<usize> for CategoricalVec {
     type Output = [u8];
 
     fn index(&self, i: usize) -> &[u8] {
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn initial_and_insert() {
-        let mut sa = CategoricalArray::new();
+        let mut sa = CategoricalVec::new();
         sa.push(b"one");
         sa.push(b"two");
         sa.push(b"three");
@@ -248,14 +248,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn insert_panic() {
-        let mut sa = CategoricalArray::new();
+        let mut sa = CategoricalVec::new();
         sa.push(b"one");
         sa.insert(5, b"twenty");
     }
 
     #[test]
     fn remove() {
-        let mut sa = CategoricalArray::new();
+        let mut sa = CategoricalVec::new();
         sa.push(b"one");
         sa.push(b"two");
         sa.push(b"three");
