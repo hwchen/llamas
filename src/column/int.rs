@@ -2,31 +2,31 @@ use bit_vec::BitVec;
 use rayon::prelude::*;
 use std::convert::From;
 
-use super::{Column, NumericColumn};
+use super::{Column, Numeric};
 
 #[derive(Debug, PartialEq)]
-pub struct Int8 {
+pub struct Int8Column {
     values: Vec<u8>,
     // Mask uses a bitvec overlaid onto values to know which indices hold
     // a null value. false in the bitvec maps to null in values.
     mask: BitVec,
 }
 
-impl Int8 {
+impl Int8Column {
     fn new(values: Vec<u8>, mask: BitVec) -> Self {
         // Where should the check for consistency btwn nulls
         // and values be?
         // Should they always be constructed from something
         // else?
         assert_eq!(values.len(), mask.len());
-        Int8 {
+        Int8Column {
             values: values,
             mask: mask,
         }
     }
 }
 
-impl Column for Int8 {
+impl Column for Int8Column {
     type BaseType = u8;
 
     fn dtype() -> String { "int8".to_owned() }
@@ -44,7 +44,7 @@ impl Column for Int8 {
     }
 }
 
-impl NumericColumn for Int8 {
+impl Numeric for Int8Column {
     fn sum(&self) -> Self::BaseType {
         let mask = &self.mask;
         self.values
@@ -57,14 +57,14 @@ impl NumericColumn for Int8 {
     }
 }
 
-impl From<Vec<u8>> for Int8 {
+impl From<Vec<u8>> for Int8Column {
     fn from(v: Vec<u8>) -> Self {
         let length = v.len();
-        Int8::new(v, BitVec::from_elem(length, true))
+        Int8Column::new(v, BitVec::from_elem(length, true))
     }
 }
 
-impl From<Vec<Option<u8>>> for Int8 {
+impl From<Vec<Option<u8>>> for Int8Column {
     fn from(v: Vec<Option<u8>>) -> Self {
         let mask = BitVec::from_fn(v.len(), |i| {
             match v[i] {
@@ -78,7 +78,7 @@ impl From<Vec<Option<u8>>> for Int8 {
                 _ => 0,
             }
         }).collect();
-        Int8::new(values, mask)
+        Int8Column::new(values, mask)
     }
 }
 
@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     fn impl_column_for_int8() {
-        let mut col = Int8::new(vec![1,2,3,4,5,6], BitVec::from_elem(6, true));
+        let mut col = Int8Column::new(vec![1,2,3,4,5,6], BitVec::from_elem(6, true));
         col.apply(|x| x*x);
         let res = vec![1,4,9,16,25,36];
         assert_eq!(col.values, res);
@@ -96,7 +96,7 @@ mod tests {
 
     #[test]
     fn impl_numeric_column_for_int8() {
-        let col = Int8::new(vec![1,2,3,4,5,6], BitVec::from_elem(6, true));
+        let col = Int8Column::new(vec![1,2,3,4,5,6], BitVec::from_elem(6, true));
         let sum = col.sum();
         assert_eq!(sum, 21);
     }
@@ -106,20 +106,20 @@ mod tests {
         let mut mask = BitVec::from_elem(6, true);
         mask.set(2, false);
         mask.set(4, false);
-        let col = Int8::new(vec![1,2,3,4,5,6], mask);
+        let col = Int8Column::new(vec![1,2,3,4,5,6], mask);
         let sum = col.sum();
         assert_eq!(sum, 13);
     }
 
     #[test]
     fn from_into_int8_column() {
-        let from_vec_u8 = Int8::from(vec![1,3,5,7,9]);
-        assert_eq!(from_vec_u8, Int8::new(vec![1,3,5,7,9], BitVec::from_elem(5, true)));
-        let from_vec_option_u8 = Int8::from(vec![Some(1),None,Some(5),None,None]);
+        let from_vec_u8 = Int8Column::from(vec![1,3,5,7,9]);
+        assert_eq!(from_vec_u8, Int8Column::new(vec![1,3,5,7,9], BitVec::from_elem(5, true)));
+        let from_vec_option_u8 = Int8Column::from(vec![Some(1),None,Some(5),None,None]);
         let res_values = vec![1,0,5,0,0];
         let mut res_mask = BitVec::from_elem(5, false);
         res_mask.set(0, true);
         res_mask.set(2, true);
-        assert_eq!(from_vec_option_u8, Int8::new(res_values, res_mask));
+        assert_eq!(from_vec_option_u8, Int8Column::new(res_values, res_mask));
     }
 }

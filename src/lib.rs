@@ -10,11 +10,9 @@ extern crate llamas_categorical;
 extern crate rayon;
 
 pub mod column;
+pub mod dataframe;
 
 use column::Column;
+use dataframe::DataFrame;
 
-pub struct Table<C> where C: Column {
-    column_name: Vec<usize>, //keep name and index synced?
-    columns: Vec<Box<C>>,
-}
 
