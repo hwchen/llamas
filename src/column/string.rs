@@ -19,7 +19,7 @@ use std::ops::Index;
 use std::str;
 use std::string::String;
 
-use super::{Column, NumericColumn};
+use super::Column;
 
 #[derive(Debug)]
 pub struct StringColumn {
