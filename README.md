@@ -37,3 +37,11 @@ Some notes on architecture:
   this be enough to create a streaming api?
 - for writing to database, though, streaming row-by-row is not best. Better to collect
   into a chunk and do a bulk write.
+
+# Steps:
+
+- X - Iron out traits for dynamic dispatch of columns.
+- Write iterators?
+- Write melt
+- write rename
+- write `fill_na`

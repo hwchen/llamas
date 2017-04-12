@@ -12,18 +12,3 @@ extern crate rayon;
 pub mod column;
 pub mod dataframe;
 
-pub mod prelude {
-    pub use column::{
-        Column,
-        Numeric
-    };
-
-    pub use column::{
-        Int8Column,
-        Float32Column,
-        StringColumn,
-    };
-
-    pub use dataframe::DataFrame;
-}
-

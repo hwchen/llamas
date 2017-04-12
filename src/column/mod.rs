@@ -8,14 +8,21 @@
 //! In Llamas, I try to keep the same separation of logical
 //! and physical types as in the pandas 2.0 design doc.
 
+// So, maybe that means that I don't do any abstraction or dynamic
+// anything. Column is just a bare trait object, everything is
+// written specific to struct.
+//
+// Now I've hacked this... Column as a bare trait. But I have another
+// trait DataType for implementing the actual logic (instead of for
+// dynamic dispatch). What this means is that there aren't meaningful
+// constraints on Column right now. But maybe that's for the best,
+// since I may need some flexibility for Columns anyways.
+//
+// I'll just use the traits more for organizing logic and reducing
+// boilerplate, rather than for placing constraints (esp. on user)
 
-// [x] First add sum to float
-// [x] then add from for int8
-// [x] then add integer with bitmask
-// [ ] add macro?
-// [ ] then add string column
-
-//enum Dtype {
+//#[derive(Debug, Clone, PartialEq)]
+//pub enum Dtype {
 //    //Float16,
 //    Float32(Vec<f32>),
 //    Float64(Vec<f64>),
@@ -33,30 +40,30 @@
 //    Interval(Unit),
 //}
 
-mod float;
+//mod float;
 mod int;
-mod string;
+//mod string;
 
-pub use self::float::{Float32Column};
+//pub use self::float::{Float32Column};
 pub use self::int::{Int8Column};
-pub use self::string::{StringColumn};
-
-
+//pub use self::string::{StringColumn};
 
 /// A Column. It's the logical interface to
 /// to an array(1D collection, column, logical store) of dtypes.
-pub trait Column {
-    type BaseType;
+/// TODO Can I have trait DType that extends Column, where
+/// Column is just a bare trait for use as a object trait?
+pub trait Column {}
 
-    fn dtype() -> String;
+pub trait DataType: Column {
+    type Item;
 
     fn apply<F>(&mut self, f: F) where
         Self: Sized,
-        F: Fn(Self::BaseType) -> Self::BaseType + ::std::marker::Sync;
+        F: Fn(Self::Item) -> Self::Item + ::std::marker::Sync;
 }
 
-pub trait Numeric: Column {
-    fn sum(&self) -> Self::BaseType;
+pub trait Numeric: DataType {
+  fn sum(&self) -> Self::Item;
 }
 
 pub trait Time: Column {
