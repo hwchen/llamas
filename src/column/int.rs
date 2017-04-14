@@ -26,20 +26,8 @@ impl Int8Column {
             mask: mask,
         }
     }
-
-    fn apply<F>(&mut self, f: F)
-        where F: Fn(i8) -> i8 + ::std::marker::Sync
-    {
-        // TODO best way to apply mask? zip values, or refer to mask by index?
-
-        let mask = &self.mask;
-        self.values
-            .par_iter_mut()
-            .enumerate()
-            .filter(|&(i,_)| mask[i] )
-            .for_each(|(_, x)| *x = f(*x));
-    }
 }
+
 
 impl DataType for Int8Column {
     type Item = i8;
@@ -77,6 +65,21 @@ impl<'a> DataType for &'a Int8Column {
 
     fn values(&self) -> Series<Self::Item> {
         Series::new(self)
+    }
+}
+
+impl DataTypeMut for Int8Column {
+    fn apply<F>(&mut self, f: F)
+        where F: Fn(i8) -> i8 + ::std::marker::Sync
+    {
+        // TODO best way to apply mask? zip values, or refer to mask by index?
+
+        let mask = &self.mask;
+        self.values
+            .par_iter_mut()
+            .enumerate()
+            .filter(|&(i,_)| mask[i] )
+            .for_each(|(_, x)| *x = f(*x));
     }
 }
 

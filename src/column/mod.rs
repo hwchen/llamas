@@ -53,8 +53,6 @@ pub use self::int::{Int8Column};
 
 /// A Column. It's the logical interface to
 /// to an array(1D collection, column, logical store) of dtypes.
-/// TODO Can I have trait DType that extends Column, where
-/// Column is just a bare trait for use as a object trait?
 pub trait Column {}
 
 // This trait should be everything that has to work
@@ -69,16 +67,11 @@ pub trait DataType {
         where Self::Item: Clone;
 
     fn get(&self, index: usize) -> Option<Option<&Self::Item>>;
-
-    // TODO try to get apply to work here.
-//    fn apply<F>(&mut self, f: F) where
-//        Self: Sized,
-//        F: Fn(Self::Item) -> Self::Item + ::std::marker::Sync;
 }
 
 pub trait Numeric: DataType {
-  fn sum(&self) -> Self::Item
-    where Self::Item : Sum + Clone
+    fn sum(&self) -> Self::Item
+        where Self::Item : Sum + Clone
     {
         self.values()
             .filter_map(|x| x)
@@ -87,9 +80,17 @@ pub trait Numeric: DataType {
     }
 }
 
-pub trait Time: Column {
+/// For DataType methods that use &mut, which means that they
+/// can't be implemented on &Column types, only Column and &mut
+/// Column
+pub trait DataTypeMut: DataType {
+    fn apply<F>(&mut self, f: F) where
+        Self: Sized,
+        F: Fn(Self::Item) -> Self::Item + ::std::marker::Sync;
 }
 
+// TODO make sure Series works for other data types.
+/// Iterator for column types.
 pub struct Series<'a, T: 'a + Clone> {
     values: &'a DataType<Item=T>,
     index: usize,
