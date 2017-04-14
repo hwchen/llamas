@@ -2,9 +2,9 @@ use bit_vec::BitVec;
 use rayon::prelude::*;
 use std::convert::From;
 
-use super::{Column, DataType, Numeric};
+use super::{Column, DataType, Numeric, Series};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Int8Column {
     values: Vec<i8>,
     // Mask uses a bitvec overlaid onto values to know which indices hold
@@ -26,13 +26,9 @@ impl Int8Column {
             mask: mask,
         }
     }
-}
-
-impl DataType for Int8Column {
-    type Item = i8;
 
     fn apply<F>(&mut self, f: F)
-        where F: Fn(Self::Item) -> Self::Item + ::std::marker::Sync
+        where F: Fn(i8) -> i8 + ::std::marker::Sync
     {
         // TODO best way to apply mask? zip values, or refer to mask by index?
 
@@ -45,19 +41,56 @@ impl DataType for Int8Column {
     }
 }
 
-impl Numeric for Int8Column {
+impl DataType for Int8Column {
+    type Item = i8;
 
-    fn sum(&self) -> i8 {
-        let mask = &self.mask;
-        self.values
-            .par_iter()
-            .enumerate()
-            .filter(|&(i,_)| mask[i])
-            .map(|(_, x)| x)
-            .cloned()
-            .sum()
+    fn get(&self, index: usize) -> Option<Option<&i8>> {
+        if let Some(mask) = self.mask.get(index) {
+            if !mask {
+                return Some(None);
+            }
+        } else {
+            return None;
+        }
+        Some(self.values.get(index))
+    }
+
+    fn values(&self) -> Series<Self::Item> {
+        Series::new(self)
+    }
+
+}
+
+impl<'a> DataType for &'a Int8Column {
+    type Item = i8;
+
+    fn get(&self, index: usize) -> Option<Option<&i8>> {
+        if let Some(mask) = self.mask.get(index) {
+            if !mask {
+                return Some(None);
+            }
+        } else {
+            return None;
+        }
+        Some(self.values.get(index))
+    }
+
+    fn values(&self) -> Series<Self::Item> {
+        Series::new(self)
     }
 }
+
+impl<'a> Numeric for &'a Int8Column {
+}
+
+impl<'a> ::std::iter::Sum<i8> for &'a Int8Column {
+    fn sum<I>(iter: I) -> Self
+        where I: Iterator<Item=i8>
+    {
+        iter.sum()
+    }
+}
+
 
 impl From<Vec<i8>> for Int8Column {
     fn from(v: Vec<i8>) -> Self {
@@ -84,6 +117,15 @@ impl From<Vec<Option<i8>>> for Int8Column {
     }
 }
 
+impl<'a> IntoIterator for &'a Int8Column {
+    type Item = Option<&'a i8>;
+    type IntoIter = Series<'a, i8>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Series::new(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,7 +140,7 @@ mod tests {
 
     #[test]
     fn impl_numeric_column_for_int8() {
-        let col = Int8Column::new(vec![1,2,3,4,5,6], BitVec::from_elem(6, true));
+        let col = &Int8Column::new(vec![1,2,3,4,5,6], BitVec::from_elem(6, true));
         let sum = col.sum();
         assert_eq!(sum, 21);
     }
@@ -108,7 +150,7 @@ mod tests {
         let mut mask = BitVec::from_elem(6, true);
         mask.set(2, false);
         mask.set(4, false);
-        let col = Int8Column::new(vec![1,2,3,4,5,6], mask);
+        let col = &Int8Column::new(vec![1,2,3,4,5,6], mask);
         let sum = col.sum();
         assert_eq!(sum, 13);
     }

@@ -44,6 +44,9 @@
 mod int;
 //mod string;
 
+use std::ops::Add;
+use std::iter::Sum;
+
 //pub use self::float::{Float32Column};
 pub use self::int::{Int8Column};
 //pub use self::string::{StringColumn};
@@ -54,18 +57,63 @@ pub use self::int::{Int8Column};
 /// Column is just a bare trait for use as a object trait?
 pub trait Column {}
 
-pub trait DataType: Column {
+// This trait should be everything that has to work
+// directly with the backing data;
+//
+// Other stuff, that can use an iterator of Option<> to
+// represent null doesn't have to use this interface.
+pub trait DataType {
     type Item;
 
-    fn apply<F>(&mut self, f: F) where
-        Self: Sized,
-        F: Fn(Self::Item) -> Self::Item + ::std::marker::Sync;
+    fn values(&self) -> Series<Self::Item>
+        where Self::Item: Clone;
+
+    fn get(&self, index: usize) -> Option<Option<&Self::Item>>;
+
+    // TODO try to get apply to work here.
+//    fn apply<F>(&mut self, f: F) where
+//        Self: Sized,
+//        F: Fn(Self::Item) -> Self::Item + ::std::marker::Sync;
 }
 
 pub trait Numeric: DataType {
-  fn sum(&self) -> Self::Item;
+  fn sum(&self) -> Self::Item
+    where Self::Item : Sum + Clone
+    {
+        self.values()
+            .filter_map(|x| x)
+            .cloned()
+            .sum()
+    }
 }
 
 pub trait Time: Column {
 }
 
+pub struct Series<'a, T: 'a + Clone> {
+    values: &'a DataType<Item=T>,
+    index: usize,
+}
+
+impl<'a, T> Series<'a, T>
+    where T: Clone
+{
+    pub fn new(values: &'a DataType<Item=T>) -> Self {
+        Series {
+            values: values,
+            index: 0,
+        }
+    }
+}
+
+impl<'a, T> Iterator for Series<'a, T>
+    where T: Clone
+{
+    type Item = Option<&'a T>;
+
+    fn next(&mut self) -> Option<Option<&'a T>> {
+        let res = self.values.get(self.index);
+        self.index += 1;
+        res
+    }
+}

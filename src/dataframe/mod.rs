@@ -18,6 +18,8 @@ impl DataFrame {
     pub fn add_column(&mut self, column: Box<Column>) {
         self.columns.push(column);
     }
+
+    // TODO add melt
 }
 
 #[cfg(test)]
