@@ -29,6 +29,6 @@ mod test {
     #[test]
     fn dataframe_init() {
         let mut df = DataFrame::new();
-        df.add_column(Box::new(::column::Int8Column::new(Vec::new(), BitVec::new())));
+        df.add_column(Box::new(::column::Int8Column::new()));
     }
 }

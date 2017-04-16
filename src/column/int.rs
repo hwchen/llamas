@@ -2,7 +2,7 @@ use bit_vec::BitVec;
 use rayon::prelude::*;
 use std::convert::From;
 
-use super::{Column, DataType, Numeric, Series};
+use super::{Column, DataType, DataTypeMut, Numeric, Series};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Int8Column {
@@ -15,15 +15,13 @@ pub struct Int8Column {
 impl Column for Int8Column{}
 
 impl Int8Column {
-    pub fn new(values: Vec<i8>, mask: BitVec) -> Self {
-        // Where should the check for consistency btwn nulls
-        // and values be?
-        // Should they always be constructed from something
-        // else?
-        assert_eq!(values.len(), mask.len());
+    pub fn new() -> Self {
+        // TODO later, make sure that I don't have to
+        // do an assert when creating Column that
+        // length of values and mask are the same
         Int8Column {
-            values: values,
-            mask: mask,
+            values: Vec::new(),
+            mask: BitVec::new(),
         }
     }
 }
@@ -46,7 +44,6 @@ impl DataType for Int8Column {
     fn values(&self) -> Series<Self::Item> {
         Series::new(self)
     }
-
 }
 
 impl<'a> DataType for &'a Int8Column {
@@ -69,6 +66,19 @@ impl<'a> DataType for &'a Int8Column {
 }
 
 impl DataTypeMut for Int8Column {
+    fn push(&mut self, item: Option<i8>) {
+        match item {
+            Some(item) => {
+                self.values.push(item);
+                self.mask.push(true);
+            },
+            None => {
+                self.values.push(0);
+                self.mask.push(false);
+            },
+        }
+    }
+
     fn apply<F>(&mut self, f: F)
         where F: Fn(i8) -> i8 + ::std::marker::Sync
     {
@@ -98,7 +108,10 @@ impl<'a> ::std::iter::Sum<i8> for &'a Int8Column {
 impl From<Vec<i8>> for Int8Column {
     fn from(v: Vec<i8>) -> Self {
         let length = v.len();
-        Int8Column::new(v, BitVec::from_elem(length, true))
+        Int8Column {
+            values: v,
+            mask: BitVec::from_elem(length, true),
+        }
     }
 }
 
@@ -116,7 +129,11 @@ impl From<Vec<Option<i8>>> for Int8Column {
                 _ => 0,
             }
         }).collect();
-        Int8Column::new(values, mask)
+
+        Int8Column {
+            values,
+            mask,
+        }
     }
 }
 
@@ -135,7 +152,11 @@ mod tests {
 
     #[test]
     fn impl_column_for_int8() {
-        let mut col = Int8Column::new(vec![1,2,3,4,5,6], BitVec::from_elem(6, true));
+        Int8Column::new();
+        let mut col = Int8Column {
+            values: vec![1,2,3,4,5,6],
+            mask: BitVec::from_elem(6, true),
+        };
         col.apply(|x| x*x);
         let res = vec![1,4,9,16,25,36];
         assert_eq!(col.values, res);
@@ -143,7 +164,10 @@ mod tests {
 
     #[test]
     fn impl_numeric_column_for_int8() {
-        let col = &Int8Column::new(vec![1,2,3,4,5,6], BitVec::from_elem(6, true));
+        let col = &Int8Column {
+            values: vec![1,2,3,4,5,6],
+            mask: BitVec::from_elem(6, true),
+        };
         let sum = col.sum();
         assert_eq!(sum, 21);
     }
@@ -153,7 +177,10 @@ mod tests {
         let mut mask = BitVec::from_elem(6, true);
         mask.set(2, false);
         mask.set(4, false);
-        let col = &Int8Column::new(vec![1,2,3,4,5,6], mask);
+        let col = &Int8Column {
+            values: vec![1,2,3,4,5,6],
+            mask: mask,
+        };
         let sum = col.sum();
         assert_eq!(sum, 13);
     }
@@ -161,12 +188,24 @@ mod tests {
     #[test]
     fn from_into_int8_column() {
         let from_vec_i8 = Int8Column::from(vec![1,3,5,7,9]);
-        assert_eq!(from_vec_i8, Int8Column::new(vec![1,3,5,7,9], BitVec::from_elem(5, true)));
+        assert_eq!(
+            from_vec_i8,
+            Int8Column {
+                values: vec![1,3,5,7,9],
+                mask: BitVec::from_elem(5, true),
+            }
+        );
         let from_vec_option_i8 = Int8Column::from(vec![Some(1),None,Some(5),None,None]);
         let res_values = vec![1,0,5,0,0];
         let mut res_mask = BitVec::from_elem(5, false);
         res_mask.set(0, true);
         res_mask.set(2, true);
-        assert_eq!(from_vec_option_i8, Int8Column::new(res_values, res_mask));
+        assert_eq!(
+            from_vec_option_i8,
+            Int8Column {
+                values: res_values,
+                mask: res_mask
+            }
+        );
     }
 }

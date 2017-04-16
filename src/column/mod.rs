@@ -84,6 +84,7 @@ pub trait Numeric: DataType {
 /// can't be implemented on &Column types, only Column and &mut
 /// Column
 pub trait DataTypeMut: DataType {
+    fn push(&mut self, item: Option<Self::Item>);
     fn apply<F>(&mut self, f: F) where
         Self: Sized,
         F: Fn(Self::Item) -> Self::Item + ::std::marker::Sync;
