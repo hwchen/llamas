@@ -67,6 +67,17 @@ pub trait DataType {
         where Self::Item: Clone;
 
     fn get(&self, index: usize) -> Option<Option<&Self::Item>>;
+
+//    fn len(
+//
+//    fn with_capacity
+//    fn capacity
+//    fn as_slice
+//    fn as_mut_slice
+//    fn retain
+//    fn dedup_by_key
+//    fn append
+//    fn is_empty
 }
 
 pub trait Numeric: DataType {
