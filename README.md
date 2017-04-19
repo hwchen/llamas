@@ -41,7 +41,8 @@ Some notes on architecture:
 # Steps:
 
 - X - Iron out traits for dynamic dispatch of columns.
-- Write iterators?
-- Write melt
+- X - Write iterators?
+- Write string, and string split
+- Write melt, pivot
 - write rename
 - write `fill_na`
